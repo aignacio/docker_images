@@ -1,0 +1,6 @@
+# action.yml
+name: 'RTL Dev Container'
+description: 'RTL tools'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
