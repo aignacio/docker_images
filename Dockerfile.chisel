@@ -1,0 +1,14 @@
+FROM ubuntu:latest
+LABEL author="Anderson Ignacio da Silva"
+LABEL maintainer="anderson@aignacio.com"
+ENV TZ=Europe/Dublin
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+RUN apt-get update && apt-get upgrade -y
+RUN apt-get install git file make curl -y
+WORKDIR /
+RUN curl -fL https://github.com/Virtuslab/scala-cli/releases/latest/download/scala-cli-x86_64-pc-linux.gz | gzip -d > scala-cli
+RUN chmod +x scala-cli
+RUN mv scala-cli /usr/local/bin/scala-cli
+#RUN curl -sSLf https://scala-cli.virtuslab.org/get | sh
+#RUN curl -O -L https://github.com/chipsalliance/chisel/releases/latest/download/chisel-example.scala
+

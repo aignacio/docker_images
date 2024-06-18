@@ -1,15 +1,4 @@
-# RTL Dev container
+# Repository to store all public docker images
 
-This action is used for RTL development where verilator is required.
-
-## Inputs
-
-None
-
-## Outputs
-
-None
-
-## Example usage
-
-uses: actions/rtl_dev_container@v1
+1. [RTLDev](Dockerfile.rtldev)
+2. [RTLDev](Dockerfile.rtldev)
