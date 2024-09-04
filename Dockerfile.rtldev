@@ -1,16 +1,53 @@
+# First stage: Build Stage
+FROM ubuntu:latest AS builder
+
+# ---------- VERILATOR --------
+# Install build dependencies
+RUN apt update -y && \
+    apt-get install git help2man perl \
+                    python3 make autoconf g++ flex bison ccache \
+                    libunwind-dev libgoogle-perftools-dev numactl perl-doc \
+                    libfl2 libfl-dev zlib1g zlib1g-dev lcov -y
+
+WORKDIR /tmp
+RUN git clone https://github.com/verilator/verilator.git &&\
+    cd verilator &&\
+    git checkout v5.026 &&\
+    autoconf &&\
+    ./configure &&\
+    make -j $(nproc) &&\
+    make install
+
+# ---------- SLANG --------
+# Install build dependencies
+RUN apt-get install cmake build-essential g++-14 gcc-14 libstdc++-14-dev -y
+
+WORKDIR /tmp
+RUN git clone https://github.com/MikePopoloski/slang.git &&\
+    cd /tmp/slang &&\
+    cmake -B /tmp/slang/build &&\
+    cmake --build /tmp/slang/build -j 8
+
+
+# Second: Final Stage
 FROM ubuntu:latest
 LABEL author="Anderson Ignacio da Silva"
 LABEL maintainer="anderson@aignacio.com"
 ENV TZ=Europe/Dublin
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-RUN apt-get update && apt-get upgrade -y
-RUN apt-get install git file gcc make time wget zip -y
-#[sv2v]
+
+RUN apt-get update -y
+RUN apt-get install iverilog wget unzip -y
+RUN apt-get install git perl python3 python3-pip ccache -y
+
+# Copy only the installed files from the build stage
+COPY --from=builder /tmp/slang/build/bin/slang /usr/bin/
+COPY --from=builder /tmp/verilator /usr/local/bin/verilator
+
+# ---------- SV2V --------
 RUN wget https://github.com/zachjs/sv2v/releases/download/v0.0.9/sv2v-Linux.zip
 RUN unzip sv2v-Linux.zip && rm sv2v-Linux.zip
 RUN ln -s /sv2v-Linux/sv2v /usr/bin/sv2v && chmod +x /sv2v-Linux/sv2v
-#[hdl tools]
-RUN apt-get install verilator iverilog -y
-RUN apt-get install git perl python3 python3-pip -y
-# Install nox
+
 RUN pip install nox --break-system-packages
+RUN ln -s /usr/local/bin/verilator/bin/verilator* /usr/bin
