@@ -33,6 +33,9 @@ RUN git clone https://github.com/MikePopoloski/slang.git &&\
 FROM ubuntu:latest
 LABEL author="Anderson Ignacio da Silva"
 LABEL maintainer="anderson@aignacio.com"
+LABEL name="rtldev"
+LABEL version="1.0.0"
+LABEL description="RTL Development Environment with Verilator, Slang, SV2V, and Verible"
 ENV TZ=Europe/Dublin
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
@@ -49,5 +52,24 @@ RUN wget https://github.com/zachjs/sv2v/releases/download/v0.0.9/sv2v-Linux.zip
 RUN unzip sv2v-Linux.zip && rm sv2v-Linux.zip
 RUN ln -s /sv2v-Linux/sv2v /usr/bin/sv2v && chmod +x /sv2v-Linux/sv2v
 
+# ---------- VERIBLE --------
+RUN wget https://github.com/chipsalliance/verible/releases/download/v0.0-4007-g98bdb38a/verible-v0.0-4007-g98bdb38a-linux-static-arm64.tar.gz
+RUN tar -xzf verible-v0.0-4007-g98bdb38a-linux-static-arm64.tar.gz
+RUN cp -r  verible-v0.0-4007-g98bdb38a/bin/* /usr/bin/
+
 RUN pip install nox --break-system-packages
 RUN ln -s /usr/local/bin/verilator/bin/verilator* /usr/bin
+
+# ---------- BASH COLORING --------
+# Add color support to bash
+RUN echo 'export PS1="\[\033[01;32m\]\u@rtldev\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> /root/.bashrc
+RUN echo 'export PS1="\[\033[01;32m\]\u@rtldev\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> /etc/skel/.bashrc
+
+# Enable color for ls and grep
+RUN echo 'alias ls="ls --color=auto"' >> /root/.bashrc
+RUN echo 'alias grep="grep --color=auto"' >> /root/.bashrc
+RUN echo 'alias ls="ls --color=auto"' >> /etc/skel/.bashrc
+RUN echo 'alias grep="grep --color=auto"' >> /etc/skel/.bashrc
+
+# Set default shell to bash
+SHELL ["/bin/bash", "-c"]
