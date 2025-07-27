@@ -29,8 +29,10 @@ jobs:
         run: |
           # Find all Dockerfile.* files and extract names
           dockerfiles=$(find . -name "Dockerfile.*" -type f | sed 's|./Dockerfile.||' | sort)
-          echo "Found Dockerfiles: $dockerfiles"
-          
+          # Output as a JSON array
+          json_dockerfiles=$(printf '%s\n' $dockerfiles | jq -R . | jq -s .)
+          echo "dockerfiles=$json_dockerfiles" >> $GITHUB_OUTPUT
+
           # Check if any Dockerfiles were found
           if [ -z "$dockerfiles" ]; then
             echo "No Dockerfiles found!"
@@ -44,14 +46,14 @@ jobs:
         run: |
           # Read dockerfiles from previous step
           dockerfiles="${{ steps.find-dockerfiles.outputs.dockerfiles }}"
-          
+
           # Check if no Dockerfiles were found
           if [ "$dockerfiles" = "none" ] || [ -z "$dockerfiles" ]; then
             echo "No Dockerfiles to build"
             echo "matrix=[]" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           # Create JSON array for matrix
           matrix='['
           first=true
@@ -61,10 +63,10 @@ jobs:
             else
               matrix="$matrix,"
             fi
-            
+
             # Create image name (remove any special characters)
             image_name=$(echo "$dockerfile" | sed 's/[^a-zA-Z0-9]//g')
-            
+
             # Create description based on image name
             case $image_name in
               rtldev)
@@ -98,11 +100,11 @@ jobs:
                 description="$image_name Development Environment"
                 ;;
             esac
-            
+
             matrix="$matrix{\"dockerfile\":\"$dockerfile\",\"image_name\":\"$image_name\",\"description\":\"$description\"}"
           done
           matrix="$matrix]"
-          
+
           echo "Matrix: $matrix"
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
@@ -185,7 +187,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Total Dockerfiles found:** ${{ needs.discover-dockerfiles.outputs.dockerfiles }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           # Check if any Dockerfiles were found
           if [ "${{ needs.discover-dockerfiles.outputs.dockerfiles }}" = "none" ]; then
             echo "⚠️ **No Dockerfiles found in repository**" >> $GITHUB_STEP_SUMMARY
@@ -198,4 +200,4 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Images built:**" >> $GITHUB_STEP_SUMMARY
             echo "${{ needs.discover-dockerfiles.outputs.dockerfiles }}" >> $GITHUB_STEP_SUMMARY
-          fi 
+          fi
