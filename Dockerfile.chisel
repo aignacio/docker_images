@@ -11,4 +11,3 @@ RUN chmod +x scala-cli
 RUN mv scala-cli /usr/local/bin/scala-cli
 #RUN curl -sSLf https://scala-cli.virtuslab.org/get | sh
 #RUN curl -O -L https://github.com/chipsalliance/chisel/releases/latest/download/chisel-example.scala
-

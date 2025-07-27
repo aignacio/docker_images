@@ -29,14 +29,15 @@ jobs:
         run: |
           # Find all Dockerfile.* files and extract names
           dockerfiles=$(find . -name "Dockerfile.*" -type f | sed 's|./Dockerfile.||' | sort)
-          # Output as a JSON array
-          json_dockerfiles=$(printf '%s\n' $dockerfiles | jq -R . | jq -s .)
-          echo "dockerfiles=$json_dockerfiles" >> $GITHUB_OUTPUT
-
+          
           # Check if any Dockerfiles were found
           if [ -z "$dockerfiles" ]; then
             echo "No Dockerfiles found!"
             echo "dockerfiles=none" >> $GITHUB_OUTPUT
+          else
+            # Output as a JSON array with proper formatting
+            json_dockerfiles=$(printf '%s\n' $dockerfiles | jq -R . | jq -s -c .)
+            echo "dockerfiles=$json_dockerfiles" >> $GITHUB_OUTPUT
           fi
 
       - name: Create matrix
