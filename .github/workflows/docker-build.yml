@@ -30,13 +30,27 @@ jobs:
           # Find all Dockerfile.* files and extract names
           dockerfiles=$(find . -name "Dockerfile.*" -type f | sed 's|./Dockerfile.||' | sort)
           echo "Found Dockerfiles: $dockerfiles"
-          echo "dockerfiles=$dockerfiles" >> $GITHUB_OUTPUT
+          
+          # Check if any Dockerfiles were found
+          if [ -z "$dockerfiles" ]; then
+            echo "No Dockerfiles found!"
+            echo "dockerfiles=none" >> $GITHUB_OUTPUT
+          else
+            echo "dockerfiles=$dockerfiles" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create matrix
         id: create-matrix
         run: |
           # Read dockerfiles from previous step
           dockerfiles="${{ steps.find-dockerfiles.outputs.dockerfiles }}"
+          
+          # Check if no Dockerfiles were found
+          if [ "$dockerfiles" = "none" ] || [ -z "$dockerfiles" ]; then
+            echo "No Dockerfiles to build"
+            echo "matrix=[]" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           
           # Create JSON array for matrix
           matrix='['
@@ -171,9 +185,17 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Total Dockerfiles found:** ${{ needs.discover-dockerfiles.outputs.dockerfiles }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Results:**" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Successful builds: ${{ needs.build.result == 'success' && 'All' || 'Some' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ❌ Failed builds: ${{ needs.build.result == 'failure' && 'Some' || 'None' }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Images built:**" >> $GITHUB_STEP_SUMMARY
-          echo "${{ needs.discover-dockerfiles.outputs.dockerfiles }}" >> $GITHUB_STEP_SUMMARY 
+          
+          # Check if any Dockerfiles were found
+          if [ "${{ needs.discover-dockerfiles.outputs.dockerfiles }}" = "none" ]; then
+            echo "⚠️ **No Dockerfiles found in repository**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please add Dockerfile.* files to trigger builds." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Build Results:**" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Successful builds: ${{ needs.build.result == 'success' && 'All' || 'Some' }}" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ Failed builds: ${{ needs.build.result == 'failure' && 'Some' || 'None' }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Images built:**" >> $GITHUB_STEP_SUMMARY
+            echo "${{ needs.discover-dockerfiles.outputs.dockerfiles }}" >> $GITHUB_STEP_SUMMARY
+          fi 
