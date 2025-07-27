@@ -181,17 +181,21 @@ jobs:
         run: |
           echo "## 🐳 Docker Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Total Dockerfiles found:** ${{ needs.discover-dockerfiles.outputs.dockerfiles }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ "${{ needs.discover-dockerfiles.outputs.dockerfiles }}" = "none" ]; then
+          
+          # Get the dockerfiles output and handle it properly
+          dockerfiles_output="${{ needs.discover-dockerfiles.outputs.dockerfiles }}"
+          
+          if [ "$dockerfiles_output" = "none" ]; then
             echo "⚠️ **No Dockerfiles found in repository**" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "Please add Dockerfile.* files to trigger builds." >> $GITHUB_STEP_SUMMARY
           else
+            echo "**Total Dockerfiles found:** $dockerfiles_output" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Build Results:**" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ Successful builds: ${{ needs.build.result == 'success' && 'All' || 'Some' }}" >> $GITHUB_STEP_SUMMARY
             echo "- ❌ Failed builds: ${{ needs.build.result == 'failure' && 'Some' || 'None' }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Images built:**" >> $GITHUB_STEP_SUMMARY
-            echo "${{ needs.discover-dockerfiles.outputs.dockerfiles }}" >> $GITHUB_STEP_SUMMARY
+            echo "$dockerfiles_output" >> $GITHUB_STEP_SUMMARY
+          fi
