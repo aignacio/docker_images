@@ -7,108 +7,173 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
-    inputs:
-      dockerfile:
-        description: 'Specific Dockerfile to build (leave empty for all)'
-        required: false
-        default: ''
 
 env:
   REGISTRY: docker.io
   DOCKERHUB_USERNAME: aignacio
 
 jobs:
+  discover-dockerfiles:
+    runs-on: ubuntu-latest
+    outputs:
+      dockerfiles: ${{ steps.find-dockerfiles.outputs.dockerfiles }}
+      matrix: ${{ steps.create-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find Dockerfiles
+        id: find-dockerfiles
+        run: |
+          # Find all Dockerfile.* files and extract names
+          dockerfiles=$(find . -name "Dockerfile.*" -type f | sed 's|./Dockerfile.||' | sort)
+          echo "Found Dockerfiles: $dockerfiles"
+          echo "dockerfiles=$dockerfiles" >> $GITHUB_OUTPUT
+
+      - name: Create matrix
+        id: create-matrix
+        run: |
+          # Read dockerfiles from previous step
+          dockerfiles="${{ steps.find-dockerfiles.outputs.dockerfiles }}"
+          
+          # Create JSON array for matrix
+          matrix='['
+          first=true
+          for dockerfile in $dockerfiles; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              matrix="$matrix,"
+            fi
+            
+            # Create image name (remove any special characters)
+            image_name=$(echo "$dockerfile" | sed 's/[^a-zA-Z0-9]//g')
+            
+            # Create description based on image name
+            case $image_name in
+              rtldev)
+                description="RTL Development Environment with Verilator, Slang, SV2V, and Verible"
+                ;;
+              chisel)
+                description="Chisel Hardware Design Language Environment"
+                ;;
+              yosys)
+                description="Yosys Open SYnthesis Suite"
+                ;;
+              synlig)
+                description="Synlig Synthesis Tool Environment"
+                ;;
+              mpsocsw)
+                description="MPSoC Software Development Environment"
+                ;;
+              nox)
+                description="Nox Development Environment"
+                ;;
+              axidma)
+                description="AXI DMA Development Environment"
+                ;;
+              icarus)
+                description="Icarus Verilog Environment"
+                ;;
+              gh_runner)
+                description="GitHub Runner Environment"
+                ;;
+              *)
+                description="$image_name Development Environment"
+                ;;
+            esac
+            
+            matrix="$matrix{\"dockerfile\":\"$dockerfile\",\"image_name\":\"$image_name\",\"description\":\"$description\"}"
+          done
+          matrix="$matrix]"
+          
+          echo "Matrix: $matrix"
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
   build:
+    needs: discover-dockerfiles
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
     strategy:
       matrix:
-        dockerfile: [rtldev, chisel, yosys, synlig, mpsocsw, nox, axidma, icarus, gh_runner]
-        include:
-          - dockerfile: rtldev
-            image_name: rtldev
-            description: "RTL Development Environment with Verilator, Slang, SV2V, and Verible"
-          - dockerfile: chisel
-            image_name: chisel
-            description: "Chisel Hardware Design Language Environment"
-          - dockerfile: yosys
-            image_name: yosys
-            description: "Yosys Open SYnthesis Suite"
-          - dockerfile: synlig
-            image_name: synlig
-            description: "Synlig Synthesis Tool Environment"
-          - dockerfile: mpsocsw
-            image_name: mpsocsw
-            description: "MPSoC Software Development Environment"
-          - dockerfile: nox
-            image_name: nox
-            description: "Nox Development Environment"
-          - dockerfile: axidma
-            image_name: axidma
-            description: "AXI DMA Development Environment"
-          - dockerfile: icarus
-            image_name: icarus
-            description: "Icarus Verilog Environment"
-          - dockerfile: gh_runner
-            image_name: gh_runner
-            description: "GitHub Runner Environment"
+        include: ${{ fromJson(needs.discover-dockerfiles.outputs.matrix) }}
+      fail-fast: false  # Continue building other images if one fails
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Log in to Docker Hub
-      if: github.event_name != 'pull_request'
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ env.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.DOCKERHUB_USERNAME }}/${{ matrix.image_name }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=sha,prefix={{branch}}-
-        labels: |
-          org.opencontainers.image.title=${{ matrix.image_name }}
-          org.opencontainers.image.description=${{ matrix.description }}
-          org.opencontainers.image.vendor=Anderson Ignacio da Silva
-          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.DOCKERHUB_USERNAME }}/${{ matrix.image_name }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+          labels: |
+            org.opencontainers.image.title=${{ matrix.image_name }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.vendor=Anderson Ignacio da Silva
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile.${{ matrix.dockerfile }}
-        platforms: linux/amd64,linux/arm64
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        build-args: |
-          BUILDKIT_INLINE_CACHE=1
-        provenance: false
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+          provenance: false
 
-    - name: Show image info
-      if: github.event_name != 'pull_request'
-      run: |
-        echo "✅ Successfully built and pushed: ${{ env.REGISTRY }}/${{ env.DOCKERHUB_USERNAME }}/${{ matrix.image_name }}"
-        echo "📋 Tags: ${{ steps.meta.outputs.tags }}"
-        echo "🏷️  Labels: ${{ steps.meta.outputs.labels }}" 
+      - name: Show image info
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "✅ Successfully built and pushed: ${{ env.REGISTRY }}/${{ env.DOCKERHUB_USERNAME }}/${{ matrix.image_name }}"
+          echo "📋 Tags: ${{ steps.meta.outputs.tags }}"
+          echo "🏷️  Labels: ${{ steps.meta.outputs.labels }}"
+
+  summary:
+    needs: [discover-dockerfiles, build]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Build Summary
+        run: |
+          echo "## 🐳 Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Dockerfiles found:** ${{ needs.discover-dockerfiles.outputs.dockerfiles }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Results:**" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Successful builds: ${{ needs.build.result == 'success' && 'All' || 'Some' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ❌ Failed builds: ${{ needs.build.result == 'failure' && 'Some' || 'None' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Images built:**" >> $GITHUB_STEP_SUMMARY
+          echo "${{ needs.discover-dockerfiles.outputs.dockerfiles }}" >> $GITHUB_STEP_SUMMARY 

@@ -5,18 +5,42 @@ This directory contains a GitHub Actions workflow to automatically build and pus
 ## Workflow
 
 ### `docker-build.yml`
-Builds and pushes all Docker images individually for both AMD64 and ARM64 architectures.
 
-**Supported Images:**
-- `rtldev` - RTL Development Environment with Verilator, Slang, SV2V, and Verible
-- `chisel` - Chisel Hardware Design Language Environment
-- `yosys` - Yosys Open SYnthesis Suite
-- `synlig` - Synlig Synthesis Tool Environment
-- `mpsocsw` - MPSoC Software Development Environment
-- `nox` - Nox Development Environment
-- `axidma` - AXI DMA Development Environment
-- `icarus` - Icarus Verilog Environment
-- `gh_runner` - GitHub Runner Environment
+**🚀 Automatic Dockerfile Detection & Parallel Builds**
+
+The workflow automatically:
+- **🔍 Discovers all Dockerfile.* files** in the repository
+- **⚡ Builds all images in parallel** for maximum efficiency
+- **🏗️ Supports both AMD64 and ARM64** architectures
+- **🔄 Continues building** even if some images fail
+
+**Key Features:**
+- **Zero configuration** - Just add a `Dockerfile.*` and it's automatically built
+- **Parallel execution** - All images build simultaneously
+- **Fault tolerance** - One failed build doesn't stop others
+- **Smart descriptions** - Automatic description generation based on image name
+- **Build summary** - Comprehensive build report
+
+## How It Works
+
+### 1. **Discovery Phase**
+The workflow first scans the repository for all `Dockerfile.*` files:
+```bash
+find . -name "Dockerfile.*" -type f
+```
+
+### 2. **Matrix Generation**
+Creates a dynamic build matrix with:
+- Dockerfile name
+- Image name (sanitized)
+- Description (auto-generated)
+
+### 3. **Parallel Builds**
+Each Dockerfile gets its own parallel build job with:
+- Multi-architecture support (AMD64 + ARM64)
+- Docker Hub authentication
+- Caching for faster builds
+- Proper metadata and labels
 
 ## Setup Instructions
 
@@ -45,9 +69,31 @@ env:
   DOCKERHUB_USERNAME: your-dockerhub-username  # Change this
 ```
 
-### 4. Trigger Builds
+### 4. Add New Dockerfiles
 
-The workflow will automatically trigger on:
+**No configuration needed!** Just add a new `Dockerfile.*` to your repository:
+
+```bash
+# Add a new Dockerfile
+echo "FROM ubuntu:latest" > Dockerfile.myapp
+echo "RUN echo 'Hello World'" >> Dockerfile.myapp
+
+# Push to trigger automatic build
+git add Dockerfile.myapp
+git commit -m "Add myapp Dockerfile"
+git push
+```
+
+The workflow will automatically:
+- Detect the new `Dockerfile.myapp`
+- Create image name `myapp`
+- Generate description "myapp Development Environment"
+- Build for both AMD64 and ARM64
+- Push to Docker Hub
+
+## Trigger Builds
+
+The workflow automatically triggers on:
 - **Push to main/master branch**: Builds and pushes all images with branch name tag
 - **Push with version tag** (e.g., `v1.0.0`): Builds and pushes all images with version tags
 - **Pull requests**: Builds all images but doesn't push (for testing)
@@ -69,11 +115,13 @@ The workflow builds for both architectures:
 
 ## Build Features
 
-- **Parallel builds**: All images are built simultaneously
-- **Caching**: GitHub Actions cache for faster builds
-- **QEMU emulation**: Enables ARM64 builds on AMD64 runners
-- **BuildKit**: Advanced Docker build features
-- **Provenance disabled**: Faster builds without SBOM generation
+- **🔍 Automatic discovery**: No manual configuration needed
+- **⚡ Parallel builds**: All images build simultaneously
+- **🔄 Fault tolerance**: Failed builds don't stop others
+- **💾 Caching**: GitHub Actions cache for faster builds
+- **🐳 QEMU emulation**: Enables ARM64 builds on AMD64 runners
+- **🔧 BuildKit**: Advanced Docker build features
+- **📊 Build summary**: Comprehensive build report
 
 ## Example Usage
 
@@ -88,17 +136,47 @@ docker pull aignacio/rtldev:v1.0.0
 # Pull for specific architecture
 docker pull --platform linux/arm64 aignacio/rtldev:latest
 
-# Pull other images
-docker pull aignacio/chisel:latest
-docker pull aignacio/yosys:latest
-docker pull aignacio/synlig:latest
-# ... and so on for all images
+# Pull any image (automatically discovered)
+docker pull aignacio/myapp:latest  # If you added Dockerfile.myapp
 ```
+
+## Adding New Images
+
+### Method 1: Just Add Dockerfile
+```bash
+# Create a new Dockerfile
+cat > Dockerfile.myservice << EOF
+FROM ubuntu:latest
+RUN apt-get update && apt-get install -y mypackage
+CMD ["myservice"]
+EOF
+
+# Commit and push
+git add Dockerfile.myservice
+git commit -m "Add myservice Docker image"
+git push
+```
+
+### Method 2: Custom Description (Optional)
+If you want a custom description, you can modify the workflow's case statement in the "Create matrix" step.
 
 ## Build Matrix
 
-The workflow uses GitHub Actions matrix strategy to build all images in parallel:
-- Each Dockerfile gets its own build job
-- All jobs run simultaneously for maximum efficiency
-- If one image fails, others continue building
-- Each image gets proper metadata and labels 
+The workflow uses dynamic matrix generation:
+- **Automatic discovery** of all Dockerfile.* files
+- **Parallel execution** of all builds
+- **Independent failures** - one failure doesn't affect others
+- **Comprehensive reporting** with build summary
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Build fails for one image**: Check the specific build logs, other images will continue
+2. **Authentication errors**: Verify Docker Hub secrets are set correctly
+3. **Architecture issues**: Ensure Dockerfile supports multi-arch builds
+4. **Cache issues**: Builds will work without cache, just slower
+
+### Debug Mode
+
+To debug the discovery process, check the "Find Dockerfiles" step output in the workflow logs. 
