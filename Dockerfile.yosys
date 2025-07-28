@@ -15,8 +15,7 @@ RUN ln -s /sv2v-Linux/sv2v /usr/bin/sv2v && chmod +x /sv2v-Linux/sv2v
 RUN git clone https://github.com/parallaxsw/OpenSTA.git /opensta
 RUN apt-get install cmake build-essential flex bison swig clang expect tcl-dev libeigen3-dev -y
 # Install CUDD dependencies
-RUN apt-get install -y autoconf libtool
-
+RUN apt-get install -y autoconf libtool m4 perl
 # Clone and build CUDD
 RUN git clone https://github.com/ivmai/cudd.git /cudd \
     && cd /cudd \
