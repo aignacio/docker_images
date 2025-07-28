@@ -64,6 +64,7 @@ jobs:
         run: |
           echo "Checking changes for: ${{ matrix.dockerfile }}"
           echo "Event type: ${{ github.event_name }}"
+          echo "Current commit: $(git rev-parse HEAD)"
           
           # Check if force rebuild is requested
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.force_rebuild }}" = "true" ]; then
@@ -72,28 +73,29 @@ jobs:
             exit 0
           fi
           
-          # Get the list of changed files
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            # For pull requests, compare with base branch
-            echo "Comparing with base branch: ${{ github.base_ref }}"
-            changed_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
-          else
-            # For pushes, compare with previous commit
-            echo "Comparing with previous commit"
-            changed_files=$(git diff --name-only HEAD~1...HEAD)
-          fi
+          # For now, let's always build to debug the issue
+          echo "changed=true" >> $GITHUB_OUTPUT
+          echo "🔧 Debug mode: Building all Dockerfiles"
           
-          echo "Changed files:"
-          echo "$changed_files"
-          
-          # Check if the current Dockerfile is in the changed files
-          if echo "$changed_files" | grep -q "${{ matrix.dockerfile }}"; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "✅ Dockerfile ${{ matrix.dockerfile }} has changed, will build"
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "⏭️ Dockerfile ${{ matrix.dockerfile }} has not changed, skipping build"
-          fi
+          # Comment out the git diff logic for now
+          # if [ "${{ github.event_name }}" = "pull_request" ]; then
+          #   echo "Comparing with base branch: ${{ github.base_ref }}"
+          #   changed_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          # else
+          #   echo "Comparing with previous commit"
+          #   changed_files=$(git diff --name-only HEAD~1...HEAD)
+          # fi
+          # 
+          # echo "Changed files:"
+          # echo "$changed_files"
+          # 
+          # if echo "$changed_files" | grep -q "${{ matrix.dockerfile }}"; then
+          #   echo "changed=true" >> $GITHUB_OUTPUT
+          #   echo "✅ Dockerfile ${{ matrix.dockerfile }} has changed, will build"
+          # else
+          #   echo "changed=false" >> $GITHUB_OUTPUT
+          #   echo "⏭️ Dockerfile ${{ matrix.dockerfile }} has not changed, skipping build"
+          # fi
       
       - name: Extract image name from Dockerfile path
         id: image-name
