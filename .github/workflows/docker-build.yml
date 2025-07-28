@@ -52,51 +52,31 @@ jobs:
           driver-opts: |
             image=moby/buildkit:buildx-stable-1
           buildkitd-flags: --allow-insecure-entitlement security.insecure
-      
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
+
       - name: Check if Dockerfile has changed
         id: check-changes
         run: |
           echo "Checking changes for: ${{ matrix.dockerfile }}"
           echo "Event type: ${{ github.event_name }}"
           echo "Current commit: $(git rev-parse HEAD)"
-          
+
           # Check if force rebuild is requested
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.force_rebuild }}" = "true" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "🔄 Force rebuild requested, will build"
             exit 0
           fi
-          
+
           # For now, let's always build to debug the issue
           echo "changed=true" >> $GITHUB_OUTPUT
           echo "🔧 Debug mode: Building all Dockerfiles"
-          
-          # Comment out the git diff logic for now
-          # if [ "${{ github.event_name }}" = "pull_request" ]; then
-          #   echo "Comparing with base branch: ${{ github.base_ref }}"
-          #   changed_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
-          # else
-          #   echo "Comparing with previous commit"
-          #   changed_files=$(git diff --name-only HEAD~1...HEAD)
-          # fi
-          # 
-          # echo "Changed files:"
-          # echo "$changed_files"
-          # 
-          # if echo "$changed_files" | grep -q "${{ matrix.dockerfile }}"; then
-          #   echo "changed=true" >> $GITHUB_OUTPUT
-          #   echo "✅ Dockerfile ${{ matrix.dockerfile }} has changed, will build"
-          # else
-          #   echo "changed=false" >> $GITHUB_OUTPUT
-          #   echo "⏭️ Dockerfile ${{ matrix.dockerfile }} has not changed, skipping build"
-          # fi
-      
+
       - name: Extract image name from Dockerfile path
         id: image-name
         if: steps.check-changes.outputs.changed == 'true'
@@ -105,7 +85,7 @@ jobs:
           name=$(echo "${{ matrix.dockerfile }}" | sed 's|^\./||' | sed 's|Dockerfile\.||' | sed 's|\.|-|g')
           echo "name=$name" >> $GITHUB_OUTPUT
           echo "Image name: $name"
-      
+
       - name: Build and push
         if: steps.check-changes.outputs.changed == 'true'
         uses: docker/build-push-action@v5
@@ -116,4 +96,31 @@ jobs:
           push: true
           tags: ${{ env.DOCKERHUB_USERNAME }}/${{ steps.image-name.outputs.name }}:${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max 
+          cache-to: type=gha,mode=max
+
+  create-and-push-manifest:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: always()
+    strategy:
+      matrix:
+        dockerfile: ${{ fromJson(needs.discover-dockerfiles.outputs.dockerfiles) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Extract image name from Dockerfile path
+        id: image-name
+        run: |
+          name=$(echo "${{ matrix.dockerfile }}" | sed 's|^\./||' | sed 's|Dockerfile\.||' | sed 's|\.|-|g')
+          echo "name=$name" >> $GITHUB_OUTPUT
+      - name: Create and push manifest
+        run: |
+          IMAGE=${{ env.DOCKERHUB_USERNAME }}/${{ steps.image-name.outputs.name }}
+          docker manifest create $IMAGE:latest \
+            $IMAGE:amd64 \
+            $IMAGE:arm64
+          docker manifest push $IMAGE:latest
