@@ -73,3 +73,4 @@ RUN echo 'alias grep="grep --color=auto"' >> /etc/skel/.bashrc
 
 # Set default shell to bash
 SHELL ["/bin/bash", "-c"]
+

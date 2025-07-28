@@ -12,7 +12,7 @@ RUN ln -s /sv2v-Linux/sv2v /usr/bin/sv2v && chmod +x /sv2v-Linux/sv2v
 # [Verilator]
 #RUN apt-get install verilator -y
 # Verilator dependencies
-RUN apt-get install git perl python3 make autoconf g++ flex bison ccache -y
+RUN apt-get install git perl python3 make autoconf g++ flex bison ccache help2man -y
 RUN apt-get install libgoogle-perftools-dev numactl perl-doc -y
 RUN apt-get install libfl2 -y # Ubuntu only (ignore if gives error)
 RUN apt-get install libfl-dev -y # Ubuntu only (ignore if gives error)

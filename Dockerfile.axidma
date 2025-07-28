@@ -36,4 +36,4 @@ RUN make -j20                # Build Verilator itself (if error, try just 'make'
 RUN make install
 
 # [Tox]
-RUN pip install tox tox-gh-actions
+RUN pip install --break-system-packages tox tox-gh-actions
