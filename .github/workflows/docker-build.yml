@@ -50,8 +50,30 @@ jobs:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       
+      - name: Check if Dockerfile has changed
+        id: check-changes
+        run: |
+          # Get the list of changed files between current and previous commit
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # For pull requests, compare with base branch
+            changed_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          else
+            # For pushes, compare with previous commit
+            changed_files=$(git diff --name-only HEAD~1...HEAD)
+          fi
+          
+          # Check if the current Dockerfile is in the changed files
+          if echo "$changed_files" | grep -q "${{ matrix.dockerfile }}"; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Dockerfile ${{ matrix.dockerfile }} has changed, will build"
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "Dockerfile ${{ matrix.dockerfile }} has not changed, skipping build"
+          fi
+      
       - name: Extract image name from Dockerfile path
         id: image-name
+        if: steps.check-changes.outputs.changed == 'true'
         run: |
           # Remove ./ prefix and Dockerfile suffix, replace dots with dashes
           name=$(echo "${{ matrix.dockerfile }}" | sed 's|^\./||' | sed 's|Dockerfile\.||' | sed 's|\.|-|g')
@@ -59,6 +81,7 @@ jobs:
           echo "Image name: $name"
       
       - name: Build and push
+        if: steps.check-changes.outputs.changed == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
