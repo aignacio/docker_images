@@ -5,6 +5,13 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: 'Force rebuild all images (ignore changes)'
+        required: false
+        default: false
+        type: boolean
 
 env:
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -55,22 +62,37 @@ jobs:
       - name: Check if Dockerfile has changed
         id: check-changes
         run: |
-          # Get the list of changed files between current and previous commit
+          echo "Checking changes for: ${{ matrix.dockerfile }}"
+          echo "Event type: ${{ github.event_name }}"
+          
+          # Check if force rebuild is requested
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.force_rebuild }}" = "true" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "🔄 Force rebuild requested, will build"
+            exit 0
+          fi
+          
+          # Get the list of changed files
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # For pull requests, compare with base branch
+            echo "Comparing with base branch: ${{ github.base_ref }}"
             changed_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
           else
             # For pushes, compare with previous commit
+            echo "Comparing with previous commit"
             changed_files=$(git diff --name-only HEAD~1...HEAD)
           fi
+          
+          echo "Changed files:"
+          echo "$changed_files"
           
           # Check if the current Dockerfile is in the changed files
           if echo "$changed_files" | grep -q "${{ matrix.dockerfile }}"; then
             echo "changed=true" >> $GITHUB_OUTPUT
-            echo "Dockerfile ${{ matrix.dockerfile }} has changed, will build"
+            echo "✅ Dockerfile ${{ matrix.dockerfile }} has changed, will build"
           else
             echo "changed=false" >> $GITHUB_OUTPUT
-            echo "Dockerfile ${{ matrix.dockerfile }} has not changed, skipping build"
+            echo "⏭️ Dockerfile ${{ matrix.dockerfile }} has not changed, skipping build"
           fi
       
       - name: Extract image name from Dockerfile path
