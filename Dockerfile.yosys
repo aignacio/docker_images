@@ -20,13 +20,6 @@ RUN apt-get update && \
      ./configure --prefix=/usr && \
      make -j$(nproc) && \
      make install
-RUN apt-get update && \
-    apt-get install -y cmake build-essential flex bison swig clang expect tcl-dev libeigen3-dev autoconf libtool m4 perl && \
-    git clone https://github.com/ivmai/cudd.git /cudd && \
-    cd /cudd && \
-    ./configure --prefix=/usr && \
-    make -j$(nproc) && \
-    make install
 WORKDIR /opensta
 RUN mkdir build
 RUN cd build && cmake ../
