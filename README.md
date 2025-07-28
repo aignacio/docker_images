@@ -144,6 +144,18 @@ This repository uses GitHub Actions to automatically build and push all images t
 - **⚡ Parallel builds** for all images
 - **🔄 Multi-arch support** (AMD64 + ARM64)
 
+### Setup Required Secrets
+To enable automated builds, add these secrets to your GitHub repository:
+
+1. **`DOCKERHUB_USERNAME`** - Your Docker Hub username
+2. **`DOCKERHUB_TOKEN`** - Your Docker Hub access token (not password)
+
+**To create a Docker Hub token:**
+1. Go to [Docker Hub Account Settings](https://hub.docker.com/settings/security)
+2. Click "New Access Token"
+3. Give it a name (e.g., "GitHub Actions")
+4. Copy the token and add it as `DOCKERHUB_TOKEN` secret
+
 ## 🛠️ **Development**
 
 ### Prerequisites

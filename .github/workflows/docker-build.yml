@@ -1,201 +1,64 @@
-name: Build and Push All Docker Images
+name: Build and Push Docker Images
 
 on:
   push:
     branches: [ main, master ]
-    tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:
 
 env:
-  REGISTRY: docker.io
-  DOCKERHUB_USERNAME: aignacio
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
 
 jobs:
   discover-dockerfiles:
     runs-on: ubuntu-latest
     outputs:
-      dockerfiles: ${{ steps.find-dockerfiles.outputs.dockerfiles }}
-      matrix: ${{ steps.create-matrix.outputs.matrix }}
+      dockerfiles: ${{ steps.discover.outputs.dockerfiles }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Find Dockerfiles
-        id: find-dockerfiles
+      - uses: actions/checkout@v4
+      
+      - name: Discover Dockerfiles
+        id: discover
         run: |
-          # Find all Dockerfile.* files and extract names
-          dockerfiles=$(find . -name "Dockerfile.*" -type f | sed 's|./Dockerfile.||' | sort)
-          
-          # Check if any Dockerfiles were found
-          if [ -z "$dockerfiles" ]; then
-            echo "No Dockerfiles found!"
-            echo "dockerfiles=none" >> $GITHUB_OUTPUT
-          else
-            # Output as a JSON array with proper formatting
-            json_dockerfiles=$(printf '%s\n' $dockerfiles | jq -R . | jq -s -c .)
-            echo "dockerfiles=$json_dockerfiles" >> $GITHUB_OUTPUT
-          fi
+          # Find all Dockerfiles and create JSON array
+          dockerfiles=$(find . -name "Dockerfile*" -type f | jq -R -s -c 'split("\n")[:-1]')
+          echo "dockerfiles=$dockerfiles" >> $GITHUB_OUTPUT
+          echo "Found Dockerfiles: $dockerfiles"
 
-      - name: Create matrix
-        id: create-matrix
-        run: |
-          dockerfiles="${{ steps.find-dockerfiles.outputs.dockerfiles }}"
-
-          if [ "$dockerfiles" = "none" ] || [ -z "$dockerfiles" ]; then
-            echo "No Dockerfiles to build"
-            echo "matrix=[]" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          matrix='['
-          first=true
-          for dockerfile in $(echo "$dockerfiles" | jq -r '.[]'); do
-            if [ "$first" = true ]; then
-              first=false
-            else
-              matrix="$matrix,"
-            fi
-
-            # Create image name (remove any special characters)
-            image_name=$(echo "$dockerfile" | sed 's/[^a-zA-Z0-9]//g')
-
-            # Create description based on image name
-            case $image_name in
-              rtldev)
-                description="RTL Development Environment with Verilator, Slang, SV2V, and Verible"
-                ;;
-              chisel)
-                description="Chisel Hardware Design Language Environment"
-                ;;
-              yosys)
-                description="Yosys Open SYnthesis Suite"
-                ;;
-              synlig)
-                description="Synlig Synthesis Tool Environment"
-                ;;
-              mpsocsw)
-                description="MPSoC Software Development Environment"
-                ;;
-              nox)
-                description="Nox Development Environment"
-                ;;
-              axidma)
-                description="AXI DMA Development Environment"
-                ;;
-              icarus)
-                description="Icarus Verilog Environment"
-                ;;
-              gh_runner)
-                description="GitHub Runner Environment"
-                ;;
-              *)
-                description="$image_name Development Environment"
-                ;;
-            esac
-
-            matrix="$matrix{\"dockerfile\":\"$dockerfile\",\"image_name\":\"$image_name\",\"description\":\"$description\"}"
-          done
-          matrix="$matrix]"
-
-          echo "Matrix: $matrix"
-          echo "matrix=$matrix" >> $GITHUB_OUTPUT
-
-  build:
+  build-and-push:
     needs: discover-dockerfiles
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     strategy:
       matrix:
-        include: ${{ fromJson(needs.discover-dockerfiles.outputs.matrix) }}
-      fail-fast: false
-
+        dockerfile: ${{ fromJson(needs.discover-dockerfiles.outputs.dockerfiles) }}
+        platform: [linux/amd64, linux/arm64]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
+      - uses: actions/checkout@v4
+      
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Docker Hub
-        if: github.event_name != 'pull_request'
+      
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.DOCKERHUB_USERNAME }}/${{ matrix.image_name }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
-          labels: |
-            org.opencontainers.image.title=${{ matrix.image_name }}
-            org.opencontainers.image.description=${{ matrix.description }}
-            org.opencontainers.image.vendor=Anderson Ignacio da Silva
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-
-      - name: Build and push Docker image
+      
+      - name: Extract image name from Dockerfile path
+        id: image-name
+        run: |
+          # Remove ./ prefix and Dockerfile suffix, replace dots with dashes
+          name=$(echo "${{ matrix.dockerfile }}" | sed 's|^\./||' | sed 's|Dockerfile\.||' | sed 's|\.|-|g')
+          echo "name=$name" >> $GITHUB_OUTPUT
+          echo "Image name: $name"
+      
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.${{ matrix.dockerfile }}
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ env.DOCKERHUB_USERNAME }}/${{ steps.image-name.outputs.name }}:${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
-          provenance: false
-
-      - name: Show image info
-        if: github.event_name != 'pull_request'
-        run: |
-          echo "✅ Successfully built and pushed: ${{ env.REGISTRY }}/${{ env.DOCKERHUB_USERNAME }}/${{ matrix.image_name }}"
-          echo "📋 Tags: ${{ steps.meta.outputs.tags }}"
-          echo "🏷️  Labels: ${{ steps.meta.outputs.labels }}"
-
-  summary:
-    needs: [discover-dockerfiles, build]
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Build Summary
-        run: |
-          echo "## 🐳 Docker Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Get the dockerfiles output and handle it properly
-          dockerfiles_output="${{ needs.discover-dockerfiles.outputs.dockerfiles }}"
-          
-          if [ "$dockerfiles_output" = "none" ]; then
-            echo "⚠️ **No Dockerfiles found in repository**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Please add Dockerfile.* files to trigger builds." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "**Total Dockerfiles found:** $dockerfiles_output" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Build Results:**" >> $GITHUB_STEP_SUMMARY
-            echo "- ✅ Successful builds: ${{ needs.build.result == 'success' && 'All' || 'Some' }}" >> $GITHUB_STEP_SUMMARY
-            echo "- ❌ Failed builds: ${{ needs.build.result == 'failure' && 'Some' || 'None' }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Images built:**" >> $GITHUB_STEP_SUMMARY
-            echo "$dockerfiles_output" >> $GITHUB_STEP_SUMMARY
-          fi
+          cache-to: type=gha,mode=max 
