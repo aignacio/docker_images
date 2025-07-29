@@ -74,8 +74,8 @@ jobs:
           fi
 
           # For now, let's always build to debug the issue
-          echo "changed=true" >> $GITHUB_OUTPUT
-          echo "🔧 Debug mode: Building all Dockerfiles"
+          # echo "changed=true" >> $GITHUB_OUTPUT
+          # echo "🔧 Debug mode: Building all Dockerfiles"
 
       - name: Extract image name from Dockerfile path
         id: image-name
@@ -104,7 +104,7 @@ jobs:
     if: always()
     strategy:
       matrix:
-        dockerfile: ${{ fromJson(needs.discover-dockerfiles.outputs.dockerfiles) }}
+        dockerfile: ${{ fromJson(needs.discover-dockerfiles.outputs.dockerfiles || '[]') }}
     steps:
       - uses: actions/checkout@v4
       - name: Login to Docker Hub
