@@ -101,11 +101,15 @@ jobs:
   create-and-push-manifest:
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: always()
+    if: needs.discover-dockerfiles.outputs.dockerfiles != '[]' && needs.discover-dockerfiles.outputs.dockerfiles != ''
     strategy:
       matrix:
         dockerfile: ${{ fromJson(needs.discover-dockerfiles.outputs.dockerfiles || '[]') }}
     steps:
+      - name: Print all Dockerfiles
+        run: |
+          echo "Dockerfiles to process:"
+          echo "${{ needs.discover-dockerfiles.outputs.dockerfiles }}"
       - uses: actions/checkout@v4
       - name: Login to Docker Hub
         uses: docker/login-action@v3
