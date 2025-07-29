@@ -1,4 +1,4 @@
-name: Build and Push Docker Images
+name: "Build and Push Docker Images"
 
 on:
   push:
@@ -26,27 +26,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-      - name: Discover Dockerfiles
+      - name: "Discover Dockerfiles"
         id: discover
         run: |
           dockerfiles=$(find . -name "Dockerfile*" -type f | jq -R -s -c 'split("\n")[:-1]')
           echo "dockerfiles=$dockerfiles" >> $GITHUB_OUTPUT
           echo "Found Dockerfiles: $dockerfiles"
-
-  check-manifest-required:
-    needs: discover-dockerfiles
-    runs-on: ubuntu-latest
-    outputs:
-      should_run: ${{ steps.check.outputs.should_run }}
-    steps:
-      - id: check
-        run: |
-          dockerfiles='${{ needs.discover-dockerfiles.outputs.dockerfiles }}'
-          if [ "$dockerfiles" != "[]" ] && [ -n "$dockerfiles" ]; then
-            echo "should_run=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_run=false" >> $GITHUB_OUTPUT
-          fi
 
   build-and-push:
     needs: discover-dockerfiles
@@ -55,25 +40,25 @@ jobs:
       fail-fast: false
       matrix:
         dockerfile: ${{ fromJson(needs.discover-dockerfiles.outputs.dockerfiles) }}
-        platform: [linux/amd64, linux/arm64]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            image=moby/buildkit:buildx-stable-1
-          buildkitd-flags: --allow-insecure-entitlement security.insecure
 
-      - name: Login to Docker Hub
+      # Allow the CI environment to emulate multiple CPU architectures.
+      - name: "Set up QEMU"
+        uses: "docker/setup-qemu-action@v3"
+
+      - name: "Set up Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+
+      - name: "Login to Docker Hub"
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Check if Dockerfile has changed
+      - name: "Check if Dockerfile has changed"
         id: check-changes
         run: |
           echo "Checking changes for: ${{ matrix.dockerfile }}"
@@ -88,7 +73,7 @@ jobs:
 
           echo "changed=true" >> $GITHUB_OUTPUT  # Always rebuild for now
 
-      - name: Extract image name from Dockerfile path
+      - name: "Extract image name from Dockerfile path"
         id: image-name
         if: steps.check-changes.outputs.changed == 'true'
         run: |
@@ -96,49 +81,14 @@ jobs:
           echo "name=$name" >> $GITHUB_OUTPUT
           echo "Image name: $name"
 
-      - name: Build and push
-        if: steps.check-changes.outputs.changed == 'true'
-        uses: docker/build-push-action@v5
+      # Push images for multiple platforms to the Docker Hub (more on this in a bit).
+      - name: "Build and push image tags"
+        uses: "docker/build-push-action@v5"
         with:
-          context: .
+          context: "."
           file: ${{ matrix.dockerfile }}
-          platforms: ${{ matrix.platform }}
+          platforms: "linux/amd64,linux/arm64"
           push: true
-          tags: ${{ env.DOCKERHUB_USERNAME }}/${{ steps.image-name.outputs.name }}:${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  create-and-push-manifest:
-    needs: [build-and-push, discover-dockerfiles, check-manifest-required]
-    if: needs.check-manifest-required.outputs.should_run == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        dockerfile: ${{ fromJson(needs.discover-dockerfiles.outputs.dockerfiles) }}
-    steps:
-      - name: Print all Dockerfiles
-        run: |
-          echo "Dockerfiles to process:"
-          echo "${{ needs.discover-dockerfiles.outputs.dockerfiles }}"
-
-      - uses: actions/checkout@v4
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ env.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract image name from Dockerfile path
-        id: image-name
-        run: |
-          name=$(echo "${{ matrix.dockerfile }}" | sed 's|^\./||' | sed 's|Dockerfile\.||' | sed 's|\.|-|g')
-          echo "name=$name" >> $GITHUB_OUTPUT
-
-      - name: Create and push manifest
-        run: |
-          IMAGE=${{ env.DOCKERHUB_USERNAME }}/${{ steps.image-name.outputs.name }}
-          docker manifest create $IMAGE:latest \
-            $IMAGE:amd64 \
-            $IMAGE:arm64
-          docker manifest push $IMAGE:latest
+          tags: |
+            "${{ env.DOCKERHUB_USERNAME }}/${{ steps.image-name.outputs.name }}:latest"
+            "${{ env.DOCKERHUB_USERNAME }}/${{ steps.image-name.outputs.name }}:${{ github.ref_name }}"
