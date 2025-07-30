@@ -98,7 +98,7 @@ RUN git clone --recursive https://github.com/riscv/riscv-gnu-toolchain.git \
     && git checkout ${RISCV_TOOLCHAIN_VER} \
     && mkdir build \
     && cd build \
-    && ../configure --prefix=$RISCV --enable-multilib \
+    && ../configure --prefix=$RISCV --enable-multilib --with-arch=rv64gc --with-abi=lp64d \
     && make -j$(nproc) \
     && make install \
     && cd /tmp \
@@ -115,7 +115,8 @@ WORKDIR /tmp/spike
 RUN mkdir build &&\
     cd build &&\
     ../configure --prefix=$RISCV &&\
-    make -j$(nproc)
+    make -j$(nproc) &&\
+    make install
 
 # =============================================================================
 # BUILD VERILATOR
@@ -148,12 +149,15 @@ RUN git clone https://github.com/MikePopoloski/slang.git &&\
 # =============================================================================
 # PK provides a simple OS environment for RISC-V programs
 # Enables running bare-metal RISC-V applications
+# Verify RISC-V toolchain is working
+RUN riscv64-unknown-elf-gcc --version
 RUN git clone https://github.com/riscv-software-src/riscv-pk.git pk
 WORKDIR /tmp/pk
 RUN mkdir build &&\
     cd build &&\
-    ../configure --prefix=$RISCV --host=riscv64-linux-gnu &&\
-    make
+    ../configure --prefix=$RISCV --host=riscv64-unknown-elf &&\
+    make -j$(nproc) &&\
+    make install
 
 # =============================================================================
 # INSTALL OSS CAD SUITE
@@ -247,12 +251,10 @@ COPY --from=builder /opt/riscv /opt/riscv
 RUN ln -s /opt/riscv/bin/riscv* /usr/bin
 
 # Copy Spike simulator
-COPY --from=builder /tmp/spike/build /opt/spike
-RUN ln -s /opt/spike/spike /usr/bin
+COPY --from=builder /opt/riscv/bin/spike /usr/bin/spike
 
 # Copy Spike proxy kernel
-COPY --from=builder /tmp/pk /opt/pk
-RUN ln -s /opt/pk/build/pk /usr/bin
+COPY --from=builder /opt/riscv/bin/pk /usr/bin/pk
 
 # Copy OSS CAD Suite and create symlinks
 COPY --from=builder /oss-cad-suite/ /opt/oss-cad-suite
