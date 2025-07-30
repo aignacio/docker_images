@@ -1,3 +1,4 @@
+
 # =============================================================================
 # RISC-V RTL Development Environment Dockerfile
 # =============================================================================
@@ -164,10 +165,21 @@ RUN mkdir build &&\
 # =============================================================================
 # OSS CAD Suite includes Yosys, NextPNR, and other open-source EDA tools
 # Pre-compiled binary distribution for faster installation
+# Automatically detect architecture and download appropriate version
 WORKDIR /
-RUN wget -q https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${OSS_CAD_SUITE_VER}/oss-cad-suite-linux-arm64-${OSS_CAD_SUITE_VER//-}.tgz \
-    && tar -xzf oss-cad-suite-linux-arm64-${OSS_CAD_SUITE_VER//-}.tgz \
-    && rm oss-cad-suite-linux-arm64-${OSS_CAD_SUITE_VER//-}.tgz
+RUN ARCH=$(uname -m) \
+    && if [ "$ARCH" = "x86_64" ]; then \
+         OSS_CAD_FILENAME=oss-cad-suite-linux-x64-$(echo ${OSS_CAD_SUITE_VER} | sed 's/-//g').tgz; \
+       elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
+         OSS_CAD_FILENAME=oss-cad-suite-linux-arm64-$(echo ${OSS_CAD_SUITE_VER} | sed 's/-//g').tgz; \
+       else \
+         echo "Unsupported architecture: $ARCH"; \
+         exit 1; \
+       fi \
+    && echo "Detected architecture: $ARCH, downloading: $OSS_CAD_FILENAME" \
+    && wget -q https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${OSS_CAD_SUITE_VER}/${OSS_CAD_FILENAME} \
+    && tar -xzf ${OSS_CAD_FILENAME} \
+    && rm ${OSS_CAD_FILENAME}
 
 # =============================================================================
 # BUILD SV2V CONVERTER
@@ -175,6 +187,7 @@ RUN wget -q https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${O
 # SV2V converts SystemVerilog to Verilog
 # Built from source for better compatibility across architectures
 WORKDIR /opt
+RUN apt-get update -y && apt-get install libffi-dev -y
 RUN git clone https://github.com/zachjs/sv2v.git \
     && wget -qO- https://get.haskellstack.org/ | sh \
     && cd sv2v && make \
@@ -186,7 +199,17 @@ RUN git clone https://github.com/zachjs/sv2v.git \
 # Nox is a Python task automation tool
 # Useful for running tests and development workflows
 RUN apt-get install python3-pip -y
-RUN pip install --no-cache-dir nox==${NOX_VER} --break-system-packages
+RUN pip install --no-cache-dir nox --break-system-packages
+
+# =============================================================================
+# PRESERVE BUILT BINARIES BEFORE CLEANUP
+# =============================================================================
+# Copy built binaries to safe locations before cleanup
+RUN mkdir -p /opt/built-binaries \
+    && cp /tmp/pk/build/pk /opt/built-binaries/ \
+    && cp /tmp/slang/build/bin/slang /opt/built-binaries/ \
+    && cp /tmp/verilator/bin/verilator* /opt/built-binaries/ \
+    && cp /opt/sv2v/bin/sv2v /opt/built-binaries/
 
 # =============================================================================
 # CLEANUP BUILD STAGE
@@ -240,11 +263,11 @@ RUN apt-get update -y \
 # This is the key to the multi-stage build optimization
 
 # Copy Slang compiler
-COPY --from=builder /tmp/slang/build/bin/slang /usr/bin/
+COPY --from=builder /opt/built-binaries/slang /usr/bin/
 
 # Copy Verilator
-COPY --from=builder /tmp/verilator /usr/local/bin/verilator
-RUN ln -s /usr/local/bin/verilator/bin/verilator* /usr/bin
+COPY --from=builder /opt/built-binaries/verilator* /usr/local/bin/
+RUN ln -s /usr/local/bin/verilator* /usr/bin
 
 # Copy RISC-V toolchain
 COPY --from=builder /opt/riscv /opt/riscv
@@ -254,7 +277,7 @@ RUN ln -s /opt/riscv/bin/riscv* /usr/bin
 COPY --from=builder /opt/riscv/bin/spike /usr/bin/spike
 
 # Copy Spike proxy kernel
-COPY --from=builder /opt/riscv/bin/pk /usr/bin/pk
+COPY --from=builder /opt/built-binaries/pk /usr/bin/pk
 
 # Copy OSS CAD Suite and create symlinks
 COPY --from=builder /oss-cad-suite/ /opt/oss-cad-suite
@@ -265,12 +288,15 @@ RUN chmod +x /opt/oss-cad-suite/bin/* \
        done
 
 # Copy SV2V converter
-COPY --from=builder /opt/sv2v/bin/sv2v /usr/bin/sv2v
+COPY --from=builder /opt/built-binaries/sv2v /usr/bin/sv2v
 RUN chmod +x /usr/bin/sv2v
 
 # Copy Nox from build stage
-COPY --from=builder /usr/local/bin/nox /usr/local/bin/nox
-COPY --from=builder /usr/local/lib/python3.*/dist-packages/nox* /usr/local/lib/python3.*/dist-packages/
+#COPY --from=builder /usr/local/bin/nox /usr/local/bin/nox
+#COPY --from=builder /usr/local/lib/python3.*/dist-packages/nox* /usr/local/lib/python3.*/dist-packages/
+#RUN apt-get install python3 -y
+#RUN apt-get install python3-pip -y
+RUN pip install --no-cache-dir nox --break-system-packages
 
 # =============================================================================
 # CONFIGURE USER ENVIRONMENT
