@@ -25,7 +25,6 @@ ARG RISCV_TOOLCHAIN_VER=2025.07.16     # RISC-V GNU toolchain
 ARG SLANG_VER=master                    # SystemVerilog compiler
 ARG OSS_CAD_SUITE_VER=2025-04-09       # Open source CAD tools
 ARG SV2V_VER=v0.0.11                    # SystemVerilog to Verilog converter
-ARG NOX_VER=latest                      # Python task automation
 
 # =============================================================================
 # INSTALL BUILD DEPENDENCIES
