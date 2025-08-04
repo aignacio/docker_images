@@ -75,11 +75,11 @@ ENV PATH=$RISCV/bin:$PATH
 ENV VERILATOR_ROOT=/usr/local/share/verilator
 
 # Show versions at startup
-RUN echo "bash -c 'echo -e \"\033[1;36m🔧 Verilator version:\033[0m  \$(verilator --version)\"'" >> /root/.bashrc \
-    && echo "bash -c 'echo -e \"\033[1;36m🚀 Spike version:\033[0m      \$(spike --help 2>&1 | head -n 1)\"'" >> /root/.bashrc \
-    && echo "bash -c 'echo -e \"\033[1;36m🔨 RISC-V GCC:\033[0m         \$(riscv64-unknown-elf-gcc --version | head -n 1)\"'" >> /root/.bashrc \
-    && echo "bash -c 'echo -e \"\033[1;36m🐍 Python:\033[0m             \$(python3 --version)\"'" >> /root/.bashrc
-# Add color to terminal
+RUN echo "bash -c 'echo -e \"\n\
+\033[1;36m🔧 Verilator version:\033[0m  \$(verilator --version)\n\
+\033[1;36m🚀 Spike version:\033[0m      \$(spike --help 2>&1 | head -n 1)\n\
+\033[1;36m🔨 RISC-V GCC:\033[0m         \$(riscv64-unknown-elf-gcc --version | head -n 1)\n\
+\033[1;36m🐍 Python:\033[0m             \$(python3 --version)\"'" >> /root/.bashrc
 
 # Configure terminal with custom prompt and welcome message
 RUN echo 'export PS1="\[\033[1;36m\][aignacio_rtl]\[\033[0m\] \[\033[1;32m\]\w\[\033[0m\] \[\033[1;33m\]\$\[\033[0m\] "' >> /root/.bashrc \
