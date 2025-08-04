@@ -65,7 +65,9 @@ COPY --from=builder /usr/local/include /usr/local/include
 # Install runtime dependencies
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    python3 python3-pip curl libboost-all-dev libgoogle-perftools-dev libglib2.0-dev libpixman-1-dev && \
+    python3 python3-pip curl libboost-all-dev \
+    git device-tree-compiler cmake ninja-build \
+    libgoogle-perftools-dev libglib2.0-dev libpixman-1-dev && \
     rm -rf /var/lib/apt/lists/* && \
     pip3 install nox --break-system-packages
 
@@ -74,17 +76,21 @@ ENV RISCV=/opt/riscv
 ENV PATH=$RISCV/bin:$PATH
 ENV VERILATOR_ROOT=/usr/local/share/verilator
 
-# Show versions at startup
-RUN echo "bash -c 'echo -e \"\n\
-\033[1;36m🔧 Verilator version:\033[0m  \$(verilator --version)\n\
-\033[1;36m🚀 Spike version:\033[0m      \$(spike --help 2>&1 | head -n 1)\n\
-\033[1;36m🔨 RISC-V GCC:\033[0m         \$(riscv64-unknown-elf-gcc --version | head -n 1)\n\
-\033[1;36m🐍 Python:\033[0m             \$(python3 --version)\"'" >> /root/.bashrc
+# ---------- BASH COLORING --------
+# Add color support to bash
+RUN echo 'export PS1="\[\033[01;32m\]\u@riscv\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> /root/.bashrc
+RUN echo 'export PS1="\[\033[01;32m\]\u@riscv\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> /etc/skel/.bashrc
 
-# Configure terminal with custom prompt and welcome message
-RUN echo 'export PS1="\[\033[1;36m\][aignacio_rtl]\[\033[0m\] \[\033[1;32m\]\w\[\033[0m\] \[\033[1;33m\]\$\[\033[0m\] "' >> /root/.bashrc \
-    && echo 'export TERM=xterm-256color' >> /root/.bashrc \
-    && echo 'echo -e "\n\033[1;36m=== Welcome to aignacio/riscv container ===\033[0m"' >> /root/.bashrc \
-    && echo 'echo -e "\033[1;33mRISC-V Toolchain and RTL tools are ready!\033[0m"' >> /root/.bashrc
+# Enable color for ls and grep
+RUN echo 'alias ls="ls --color=auto"' >> /root/.bashrc
+RUN echo 'alias grep="grep --color=auto"' >> /root/.bashrc
+RUN echo 'alias ls="ls --color=auto"' >> /etc/skel/.bashrc
+RUN echo 'alias grep="grep --color=auto"' >> /etc/skel/.bashrc
+
+RUN echo "bash -c 'echo -e \"\n\
+🔧 Verilator version:  \$(verilator --version)\n\
+🚀 Spike version:      \$(spike --help 2>&1 | head -n 1)\n\
+🔨 RISC-V GCC:         \$(riscv64-unknown-elf-gcc --version | head -n 1)\n\
+🐍 Python:             \$(python3 --version)\"'" >> /root/.bashrc
 
 CMD ["/bin/bash"]
