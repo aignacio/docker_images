@@ -1,332 +1,90 @@
+# ---- Build stage ----
+# This stage builds all components (toolchain, spike, pk, verilator)
 
-# =============================================================================
-# RISC-V RTL Development Environment Dockerfile
-# =============================================================================
-# This Dockerfile creates a comprehensive RISC-V and RTL development environment
-# with tools for hardware design, simulation, and verification.
-#
-# Build with: docker build -f Dockerfile.rtl -t aignacio_rtl .
-# Run with:   docker run -it aignacio_rtl
-# =============================================================================
-
-# =============================================================================
-# BUILD STAGE - Compile all tools from source
-# =============================================================================
 FROM ubuntu:latest AS builder
 
-# =============================================================================
-# VERSION CONFIGURATION
-# =============================================================================
-# All tool versions can be overridden during build using --build-arg
-# Example: --build-arg RISCV_TOOLCHAIN_VER=2025.07.16
-ARG SPIKE_VER=master                    # RISC-V ISA simulator
-ARG VERILATOR_VER=stable                # Verilog simulator
-ARG RISCV_TOOLCHAIN_VER=2025.07.16     # RISC-V GNU toolchain
-ARG SLANG_VER=master                    # SystemVerilog compiler
-ARG OSS_CAD_SUITE_VER=2025-04-09       # Open source CAD tools
-ARG SV2V_VER=v0.0.11                    # SystemVerilog to Verilog converter
+# Set arguments with default versions
+ARG RISCV_TOOLCHAIN_BRANCH=2025.07.16
+ARG VERILATOR_VERSION=stable
+ARG SPIKE_VERSION=master
 
-# =============================================================================
-# INSTALL BUILD DEPENDENCIES
-# =============================================================================
-# Install all necessary packages for building tools from source
-# Combined into single RUN command to reduce image layers
-RUN apt-get update -y && apt-get install -y --no-install-recommends \
-    # Basic build tools
-    wget \
-    git \
-    make \
-    cmake \
-    autoconf \
-    build-essential \
-    gcc \
-    g++ \
-    gcc-14 \
-    g++-14 \
-    libstdc++-14-dev \
-    # RISC-V cross-compilation
-    gcc-riscv64-linux-gnu \
-    device-tree-compiler \
-    gawk \
-    # Mathematical libraries for GCC
-    libgmp-dev \
-    libmpfr-dev \
-    libmpc-dev \
-    libisl-dev \
-    # System libraries
-    libexpat1-dev \
-    libncurses5-dev \
-    libncursesw5-dev \
-    libboost-regex-dev \
-    libboost-system-dev \
-    libunwind-dev \
-    libgoogle-perftools-dev \
-    # Development tools
-    help2man \
-    perl \
-    perl-doc \
-    python3 \
-    flex \
-    bison \
-    ccache \
-    numactl \
-    libfl2 \
-    libfl-dev \
-    zlib1g \
-    zlib1g-dev \
-    lcov \
-    texinfo \
-    # Package management
-    zip \
-    curl \
-    gnupg \
-    lsb-release \
-    software-properties-common \
-    && rm -rf /var/lib/apt/lists/*
+# Install dependencies
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    autoconf automake autotools-dev curl python3 python3-pip libmpc-dev libmpfr-dev libgmp-dev \
+    gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev git \
+    libexpat-dev libboost-all-dev libyaml-dev device-tree-compiler cmake ninja-build \
+    libgoogle-perftools-dev libglib2.0-dev libpixman-1-dev pkg-config python3-setuptools \
+    python3-pybind11 && \
+    rm -rf /var/lib/apt/lists/*
 
-# =============================================================================
-# BUILD RISC-V GNU TOOLCHAIN
-# =============================================================================
-# Compile the official RISC-V GNU toolchain from source
-# This provides gcc, binutils, and newlib for RISC-V development
-WORKDIR /tmp
+# Environment
 ENV RISCV=/opt/riscv
-ENV PATH="$RISCV/bin:$PATH"
 
-RUN git clone --recursive https://github.com/riscv/riscv-gnu-toolchain.git \
-    && cd riscv-gnu-toolchain \
-    && git checkout ${RISCV_TOOLCHAIN_VER} \
-    && mkdir build \
-    && cd build \
-    && ../configure --prefix=$RISCV --enable-multilib --with-arch=rv64gc --with-abi=lp64d \
-    && make -j$(nproc) \
-    && make install \
-    && cd /tmp \
-    && rm -rf riscv-gnu-toolchain
+# Build RISC-V toolchain (multilib)
+RUN git clone https://github.com/riscv/riscv-gnu-toolchain && \
+    cd riscv-gnu-toolchain && \
+    git checkout ${RISCV_TOOLCHAIN_BRANCH} && \
+    ./configure --prefix=$RISCV --enable-multilib && \
+    make -j$(nproc)
 
-# =============================================================================
-# BUILD SPIKE RISC-V ISA SIMULATOR
-# =============================================================================
-# Spike is the reference RISC-V ISA simulator
-# Used for testing RISC-V programs and booting Linux
-RUN git clone https://github.com/riscv-software-src/riscv-isa-sim.git \
-              -b ${SPIKE_VER} spike
-WORKDIR /tmp/spike
-RUN mkdir build &&\
-    cd build &&\
-    ../configure --prefix=$RISCV &&\
-    make -j$(nproc) &&\
-    make install
+# Build spike
+RUN git clone https://github.com/riscv-software-src/riscv-isa-sim.git && \
+    cd riscv-isa-sim && \
+    git checkout ${SPIKE_VERSION} && \
+    mkdir build && cd build && \
+    ../configure --prefix=$RISCV && make -j$(nproc) && make install
 
-# =============================================================================
-# BUILD VERILATOR
-# =============================================================================
-# Verilator is a fast Verilog/SystemVerilog simulator
-# Converts Verilog to C++ for high-performance simulation
-WORKDIR /tmp
-RUN git clone https://github.com/verilator/verilator.git &&\
-    cd verilator &&\
-    git checkout ${VERILATOR_VER} &&\
-    autoconf &&\
-    ./configure &&\
-    make -j$(nproc) &&\
-    make install
+# # Build proxy kernel (pk)
+# RUN git clone https://github.com/riscv-software-src/riscv-pk.git && \
+#     cd riscv-pk && \
+#     mkdir build && cd build && \
+#     ../configure --prefix=$RISCV --host=riscv64-unknown-elf && \
+#     make -j$(nproc) && make install
 
-# =============================================================================
-# BUILD SLANG COMPILER
-# =============================================================================
-# Slang is a modern SystemVerilog compiler
-# Provides fast compilation and better error messages
-WORKDIR /tmp
-RUN git clone https://github.com/MikePopoloski/slang.git &&\
-    cd /tmp/slang &&\
-    git checkout ${SLANG_VER} &&\
-    cmake -B /tmp/slang/build &&\
-    cmake --build /tmp/slang/build -j$(nproc)
+# Build Verilator
+RUN apt-get update -y && apt-get install git help2man perl python3 make \
+    g++ libfl-dev zlib1g zlib1g-dev ccache mold libgoogle-perftools-dev numactl -y
+RUN git clone https://github.com/verilator/verilator && \
+    cd verilator && \
+    git checkout ${VERILATOR_VERSION} && \
+    autoconf && ./configure && make -j$(nproc) && make install
 
-# =============================================================================
-# BUILD SPIKE PROXY KERNEL (PK)
-# =============================================================================
-# PK provides a simple OS environment for RISC-V programs
-# Enables running bare-metal RISC-V applications
-# Verify RISC-V toolchain is working
-RUN riscv64-unknown-elf-gcc --version
-RUN git clone https://github.com/riscv-software-src/riscv-pk.git pk
-WORKDIR /tmp/pk
-RUN mkdir build &&\
-    cd build &&\
-    ../configure --prefix=$RISCV --host=riscv64-unknown-elf &&\
-    make -j$(nproc) &&\
-    make install
+# ---- Final image ----
+FROM ubuntu:latest AS final
 
-# =============================================================================
-# INSTALL OSS CAD SUITE
-# =============================================================================
-# OSS CAD Suite includes Yosys, NextPNR, and other open-source EDA tools
-# Pre-compiled binary distribution for faster installation
-# Automatically detect architecture and download appropriate version
-WORKDIR /
-RUN ARCH=$(uname -m) \
-    && if [ "$ARCH" = "x86_64" ]; then \
-         OSS_CAD_FILENAME=oss-cad-suite-linux-x64-$(echo ${OSS_CAD_SUITE_VER} | sed 's/-//g').tgz; \
-       elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
-         OSS_CAD_FILENAME=oss-cad-suite-linux-arm64-$(echo ${OSS_CAD_SUITE_VER} | sed 's/-//g').tgz; \
-       else \
-         echo "Unsupported architecture: $ARCH"; \
-         exit 1; \
-       fi \
-    && echo "Detected architecture: $ARCH, downloading: $OSS_CAD_FILENAME" \
-    && wget -q https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${OSS_CAD_SUITE_VER}/${OSS_CAD_FILENAME} \
-    && tar -xzf ${OSS_CAD_FILENAME} \
-    && rm ${OSS_CAD_FILENAME}
+ARG VERILATOR_VERSION=stable
 
-# =============================================================================
-# BUILD SV2V CONVERTER
-# =============================================================================
-# SV2V converts SystemVerilog to Verilog
-# Built from source for better compatibility across architectures
-WORKDIR /opt
-RUN apt-get update -y && apt-get install libffi-dev -y
-RUN git clone https://github.com/zachjs/sv2v.git \
-    && wget -qO- https://get.haskellstack.org/ | sh \
-    && cd sv2v && make \
-    && rm -rf /root/.stack /root/.cabal
-
-# =============================================================================
-# INSTALL NOX TASK AUTOMATION
-# =============================================================================
-# Nox is a Python task automation tool
-# Useful for running tests and development workflows
-RUN apt-get install python3-pip -y
-RUN pip install --no-cache-dir nox --break-system-packages
-
-# =============================================================================
-# PRESERVE BUILT BINARIES BEFORE CLEANUP
-# =============================================================================
-# Copy built binaries to safe locations before cleanup
-RUN mkdir -p /opt/built-binaries \
-    && cp /tmp/pk/build/pk /opt/built-binaries/ \
-    && cp /tmp/slang/build/bin/slang /opt/built-binaries/ \
-    && cp /tmp/verilator/bin/verilator* /opt/built-binaries/ \
-    && cp /opt/sv2v/bin/sv2v /opt/built-binaries/
-
-# =============================================================================
-# CLEANUP BUILD STAGE
-# =============================================================================
-# Remove build artifacts, caches, and temporary files
-# This significantly reduces the final image size
-RUN apt-get clean \
-    && rm -rf /tmp/* /var/tmp/* \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /root/.cache \
-    && rm -rf /root/.local
-
-# =============================================================================
-# RUNTIME STAGE - Create final optimized image
-# =============================================================================
-FROM ubuntu:latest
-LABEL author="Anderson Ignacio da Silva"
-LABEL maintainer="anderson@aignacio.com"
-LABEL description="RISC-V RTL Development Environment"
-LABEL version="1.0"
-
-# =============================================================================
-# CONFIGURE TIMEZONE
-# =============================================================================
-ENV TZ=Europe/Dublin
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-
-# =============================================================================
-# INSTALL RUNTIME DEPENDENCIES
-# =============================================================================
-# Install only essential packages needed at runtime
-# Excluded build tools and development packages to minimize size
-RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends \
-        iverilog \
-        file \
-        gcc-riscv64-linux-gnu \
-        build-essential \
-        perl \
-        python3 \
-        python3-pip \
-        ccache \
-        device-tree-compiler \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-
-# =============================================================================
-# COPY BUILT TOOLS FROM BUILD STAGE
-# =============================================================================
-# Copy only the compiled binaries and libraries
-# This is the key to the multi-stage build optimization
-
-# Copy Slang compiler
-COPY --from=builder /opt/built-binaries/slang /usr/bin/
-
-# Copy Verilator
-COPY --from=builder /opt/built-binaries/verilator* /usr/local/bin/
-RUN ln -s /usr/local/bin/verilator* /usr/bin
-
-# Copy RISC-V toolchain
+# Copy from build stage
 COPY --from=builder /opt/riscv /opt/riscv
-RUN ln -s /opt/riscv/bin/riscv* /usr/bin
+COPY --from=builder /usr/local/bin/verilator* /usr/local/bin/
+COPY --from=builder /usr/local/share/verilator /usr/local/share/verilator
+COPY --from=builder /usr/local/lib /usr/local/lib
+COPY --from=builder /usr/local/include /usr/local/include
 
-# Copy Spike simulator
-COPY --from=builder /opt/riscv/bin/spike /usr/bin/spike
+# Install runtime dependencies
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    python3 python3-pip curl libboost-all-dev libgoogle-perftools-dev libglib2.0-dev libpixman-1-dev && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip3 install nox --break-system-packages
 
-# Copy Spike proxy kernel
-COPY --from=builder /opt/built-binaries/pk /usr/bin/pk
+# Set environment
+ENV RISCV=/opt/riscv
+ENV PATH=$RISCV/bin:$PATH
+ENV VERILATOR_ROOT=/usr/local/share/verilator
 
-# Copy OSS CAD Suite and create symlinks
-COPY --from=builder /oss-cad-suite/ /opt/oss-cad-suite
-RUN chmod +x /opt/oss-cad-suite/bin/* \
-    && for bin in /opt/oss-cad-suite/bin/*; do \
-         target="/usr/bin/$(basename "$bin")"; \
-         [ -e "$target" ] || ln -s "$bin" "$target"; \
-       done
-
-# Copy SV2V converter
-COPY --from=builder /opt/built-binaries/sv2v /usr/bin/sv2v
-RUN chmod +x /usr/bin/sv2v
-
-# Copy Nox from build stage
-#COPY --from=builder /usr/local/bin/nox /usr/local/bin/nox
-#COPY --from=builder /usr/local/lib/python3.*/dist-packages/nox* /usr/local/lib/python3.*/dist-packages/
-#RUN apt-get install python3 -y
-#RUN apt-get install python3-pip -y
-RUN pip install --no-cache-dir nox --break-system-packages
-
-# =============================================================================
-# CONFIGURE USER ENVIRONMENT
-# =============================================================================
-
-# Add OSS CAD Suite environment setup
-RUN echo "source /opt/oss-cad-suite/environment" >> /root/.bashrc
+# Show versions at startup
+RUN echo "bash -c 'echo -e \"\033[1;36m🔧 Verilator version:\033[0m  \$(verilator --version)\"'" >> /etc/bash.bashrc \
+    && echo "bash -c 'echo -e \"\033[1;36m🚀 Spike version:\033[0m      \$(spike --help 2>&1 | head -n 1)\"'" >> /etc/bash.bashrc \
+    && echo "bash -c 'echo -e \"\033[1;36m🔨 RISC-V GCC:\033[0m         \$(riscv64-unknown-elf-gcc --version | head -n 1)\"'" >> /etc/bash.bashrc \
+    && echo "bash -c 'echo -e \"\033[1;36m🐍 Python:\033[0m             \$(python3 --version)\"'" >> /etc/bash.bashrc
+# Add color to terminal
 
 # Configure terminal with custom prompt and welcome message
 RUN echo 'export PS1="\[\033[1;36m\][aignacio_rtl]\[\033[0m\] \[\033[1;32m\]\w\[\033[0m\] \[\033[1;33m\]\$\[\033[0m\] "' >> /root/.bashrc \
     && echo 'export TERM=xterm-256color' >> /root/.bashrc \
-    && echo 'echo -e "\033[1;36m=== Welcome to aignacio_rtl container ===\033[0m"' >> /root/.bashrc \
+    && echo 'echo -e "\n\033[1;36m=== Welcome to aignacio/riscv container ===\033[0m"' >> /root/.bashrc \
     && echo 'echo -e "\033[1;33mRISC-V Toolchain and RTL tools are ready!\033[0m"' >> /root/.bashrc
 
-# =============================================================================
-# SET ENVIRONMENT VARIABLES
-# =============================================================================
-ENV RISCV=/opt/riscv
-ENV PATH="/opt/riscv/bin:/opt/oss-cad-suite/bin:${PATH}"
-
-# =============================================================================
-# FINAL CLEANUP
-# =============================================================================
-# Remove any remaining temporary files and caches
-RUN apt-get clean \
-    && rm -rf /tmp/* /var/tmp/* \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /root/.cache
-
-# =============================================================================
-# CONFIGURE CONTAINER
-# =============================================================================
-WORKDIR /workspace
 CMD ["/bin/bash"]
