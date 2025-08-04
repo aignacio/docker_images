@@ -1,3 +1,5 @@
+[![Build and Push Docker Images](https://github.com/aignacio/docker_images/actions/workflows/docker-build.yml/badge.svg)](https://github.com/aignacio/docker_images/actions/workflows/docker-build.yml)
+
 # 🐳 Docker Images Collection
 
 > **A curated collection of specialized Docker images for hardware design, RTL development, and embedded systems**
