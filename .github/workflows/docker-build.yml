@@ -35,7 +35,7 @@ jobs:
 
   build-and-push:
     needs: discover-dockerfiles
-    runs-on: self-hosted
+    runs-on: ubuntu-latest, self-hosted
     strategy:
       fail-fast: false
       matrix:
