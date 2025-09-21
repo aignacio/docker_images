@@ -1,0 +1,53 @@
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-lc"]
+
+# ---- Base tools for Olympia + Sparta (map_v2) ----
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git ca-certificates curl \
+    build-essential clang g++ gdb \
+    cmake pkg-config ninja-build ccache \
+    libboost-all-dev \
+    libyaml-cpp-dev \
+    rapidjson-dev \
+    libsqlite3-dev \
+    libhdf5-dev \
+    zstd libzstd-dev \
+    python3 python3-pip python3-venv \
+    less vim \
+    flex bison \
+    clang-tidy \
+ && rm -rf /var/lib/apt/lists/*
+
+# Make ccache the default for faster rebuilds
+ENV CCACHE_DIR=/ccache
+RUN mkdir -p ${CCACHE_DIR} && chmod -R 777 ${CCACHE_DIR}
+ENV PATH="/usr/lib/ccache:${PATH}"
+ENV CC="cc" CXX="c++"
+
+# ---- Build + install Sparta (map_v2) once into the image ----
+WORKDIR /opt
+RUN git clone --depth=1 --branch map_v2 https://github.com/sparcians/map.git
+WORKDIR /opt/map/sparta
+RUN cmake -S . -B /opt/sparta-build -G Ninja -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build /opt/sparta-build -j"$(nproc)" && \
+    cmake --install /opt/sparta-build --prefix /usr/local
+
+# Make the runtime linker see /usr/local libs
+RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/usr-local.conf && ldconfig
+# Seed CMake with Sparta hints so you don't have to pass -D flags
+RUN mkdir -p /etc/cmake && cat >/etc/cmake/olympia-toolchain.cmake <<'EOF'
+# Tell Olympia where Sparta is installed
+set(SPARTA_SEARCH_DIR "/usr/local" CACHE PATH "Sparta install prefix")
+# Also support the standard find_package path if used
+set(Sparta_DIR "/usr/local/lib/cmake/sparta" CACHE PATH "Path to spartaConfig.cmake")
+# Ensure /usr/local is in the default search prefixes
+list(PREPEND CMAKE_PREFIX_PATH "/usr/local")
+set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" CACHE STRING "" FORCE)
+EOF
+
+# Make CMake always load the toolchain
+ENV CMAKE_TOOLCHAIN_FILE=/etc/cmake/olympia-toolchain.cmake
+# Working directory where you'll mount your repo
+WORKDIR /work
+ENTRYPOINT ["/bin/bash"]
