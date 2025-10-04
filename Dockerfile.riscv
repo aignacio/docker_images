@@ -1,12 +1,10 @@
 # ---- Build stage ----
 # This stage builds all components (toolchain, spike, pk, verilator)
 
-FROM ubuntu:24.04 AS builder
+FROM ubuntu:latest AS builder
 
 # Set arguments with default versions
-# ARG RISCV_TOOLCHAIN_BRANCH=2025.07.16
-ARG RV_REPO="riscv-collab/riscv-gnu-toolchain"
-ARG RV_TOOLCHAIN_VERSION="riscv64-elf-ubuntu-24.04-gcc-nightly"
+ARG RISCV_TOOLCHAIN_VERSION=latest
 ARG VERILATOR_VERSION=stable
 ARG SPIKE_VERSION=master
 
@@ -20,28 +18,18 @@ RUN apt-get update && \
     python3-pybind11 && \
     rm -rf /var/lib/apt/lists/*
 
-# Environment
+# Installing RISC-V toolchain
 ENV RISCV=/opt/riscv
-RUN curl -fsSL https://api.github.com/repos/${RV_REPO}/releases | \
-    jq -r --arg pre "${RV_TOOLCHAIN_VERSION}" '.[].assets[] | \
-    select(.name|startswith($pre) and endswith(".tar.xz")) | .browser_download_url' | head -n1 | xargs -r curl -fLO
-RUN set -eux; \
-    FILE="$(ls -1t riscv*-nightly*.tar.xz | head -1)"; \
-    mkdir -p "$RISCV"; \
-    tar -xJf "$FILE" -C "$RISCV" --strip-components=1; \
-    rm -f "$FILE"
-#RUN FILE=$(ls -1t riscv*-nightly*.tar.xz | head -1); \
-#    mkdir -p "$RISCV"; \
-#    TOP=$(tar -tf "$FILE" | head -1 | cut -d/ -f1); \
-#    tar -xJf "$FILE" -C "$RISCV"; \
-#    ln -sfn "$RISCV/$TOP" "$RISCV/riscv"
+ENV NVM_DIR=/root/.nvm
+ENV XPACKS_STORE_FOLDER=/root/.local/xPacks
 
-# Build RISC-V toolchain (multilib)
-#RUN git clone https://github.com/riscv/riscv-gnu-toolchain && \
-#    cd riscv-gnu-toolchain && \
-#    git checkout ${RISCV_TOOLCHAIN_BRANCH} && \
-#    ./configure --prefix=$RISCV --enable-multilib && \
-#    make -j$(nproc)
+RUN bash -lc 'set -euo pipefail; \
+  curl -fsSL https://raw.githubusercontent.com/xpack/assets/master/scripts/install-nvm-node-npm-xpm.sh | bash && \
+  source "$NVM_DIR/nvm.sh" && \
+  node -v && npm -v && xpm --version && \
+  xpm install --global @xpack-dev-tools/riscv-none-elf-gcc@$RISCV_TOOLCHAIN_VERSION --verbose && \
+  SRC="$(ls -d "$XPACKS_STORE_FOLDER"/@xpack-dev-tools/riscv-none-elf-gcc/*/.content | sort -V | tail -1)" && \
+  mkdir -p "$RISCV" && cp -a "$SRC"/. "$RISCV"/'
 
 # Build spike
 RUN git clone https://github.com/riscv-software-src/riscv-isa-sim.git && \
@@ -66,7 +54,7 @@ RUN git clone https://github.com/verilator/verilator && \
     autoconf && ./configure && make -j$(nproc) && make install
 
 # ---- Final image ----
-FROM ubuntu:24.04 AS final
+FROM ubuntu:latest AS final
 
 ARG VERILATOR_VERSION=stable
 
@@ -91,6 +79,8 @@ ENV RISCV=/opt/riscv
 ENV PATH=$RISCV/bin:$PATH
 ENV VERILATOR_ROOT=/usr/local/share/verilator
 
+RUN pip install nox --break-system-packages
+
 # ---------- BASH COLORING --------
 # Add color support to bash
 RUN echo 'export PS1="\[\033[01;32m\]\u@riscv\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> /root/.bashrc
@@ -105,7 +95,7 @@ RUN echo 'alias grep="grep --color=auto"' >> /etc/skel/.bashrc
 RUN echo "bash -c 'echo -e \"\n\
 🔧 Verilator version:  \$(verilator --version)\n\
 🚀 Spike version:      \$(spike --help 2>&1 | head -n 1)\n\
-🔨 RISC-V GCC:         \$(riscv64-unknown-elf-gcc --version | head -n 1)\n\
+🔨 RISC-V GCC:         \$(riscv-none-elf-gcc --version | head -n 1)\n\
 🐍 Python:             \$(python3 --version)\"'" >> /root/.bashrc
 
 CMD ["/bin/bash"]
