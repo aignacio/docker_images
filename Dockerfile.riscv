@@ -1,17 +1,19 @@
 # ---- Build stage ----
 # This stage builds all components (toolchain, spike, pk, verilator)
 
-FROM ubuntu:latest AS builder
+FROM ubuntu:24.04 AS builder
 
 # Set arguments with default versions
-ARG RISCV_TOOLCHAIN_BRANCH=2025.07.16
+# ARG RISCV_TOOLCHAIN_BRANCH=2025.07.16
+ARG RV_REPO="riscv-collab/riscv-gnu-toolchain"
+ARG RV_TOOLCHAIN_VERSION="riscv64-elf-ubuntu-24.04-gcc-nightly"
 ARG VERILATOR_VERSION=stable
 ARG SPIKE_VERSION=master
 
 # Install dependencies
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    autoconf automake autotools-dev curl python3 python3-pip libmpc-dev libmpfr-dev libgmp-dev \
+    autoconf automake autotools-dev curl jq wget python3 python3-pip libmpc-dev libmpfr-dev libgmp-dev \
     gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev git \
     libexpat-dev libboost-all-dev libyaml-dev device-tree-compiler cmake ninja-build \
     libgoogle-perftools-dev libglib2.0-dev libpixman-1-dev pkg-config python3-setuptools \
@@ -20,13 +22,26 @@ RUN apt-get update && \
 
 # Environment
 ENV RISCV=/opt/riscv
+RUN curl -fsSL https://api.github.com/repos/${RV_REPO}/releases | \
+    jq -r --arg pre "${RV_TOOLCHAIN_VERSION}" '.[].assets[] | \
+    select(.name|startswith($pre) and endswith(".tar.xz")) | .browser_download_url' | head -n1 | xargs -r curl -fLO
+RUN set -eux; \
+    FILE="$(ls -1t riscv*-nightly*.tar.xz | head -1)"; \
+    mkdir -p "$RISCV"; \
+    tar -xJf "$FILE" -C "$RISCV" --strip-components=1; \
+    rm -f "$FILE"
+#RUN FILE=$(ls -1t riscv*-nightly*.tar.xz | head -1); \
+#    mkdir -p "$RISCV"; \
+#    TOP=$(tar -tf "$FILE" | head -1 | cut -d/ -f1); \
+#    tar -xJf "$FILE" -C "$RISCV"; \
+#    ln -sfn "$RISCV/$TOP" "$RISCV/riscv"
 
 # Build RISC-V toolchain (multilib)
-RUN git clone https://github.com/riscv/riscv-gnu-toolchain && \
-    cd riscv-gnu-toolchain && \
-    git checkout ${RISCV_TOOLCHAIN_BRANCH} && \
-    ./configure --prefix=$RISCV --enable-multilib && \
-    make -j$(nproc)
+#RUN git clone https://github.com/riscv/riscv-gnu-toolchain && \
+#    cd riscv-gnu-toolchain && \
+#    git checkout ${RISCV_TOOLCHAIN_BRANCH} && \
+#    ./configure --prefix=$RISCV --enable-multilib && \
+#    make -j$(nproc)
 
 # Build spike
 RUN git clone https://github.com/riscv-software-src/riscv-isa-sim.git && \
@@ -51,7 +66,7 @@ RUN git clone https://github.com/verilator/verilator && \
     autoconf && ./configure && make -j$(nproc) && make install
 
 # ---- Final image ----
-FROM ubuntu:latest AS final
+FROM ubuntu:24.04 AS final
 
 ARG VERILATOR_VERSION=stable
 
