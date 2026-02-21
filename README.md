@@ -1,113 +1,100 @@
 [![Build and Push Docker Images](https://github.com/aignacio/docker_images/actions/workflows/docker-build.yml/badge.svg)](https://github.com/aignacio/docker_images/actions/workflows/docker-build.yml)
 
-# 🐳 Docker Images Collection
+# Docker Images
 
-> **A curated collection of specialized Docker images for hardware design, RTL development, and embedded systems**
+Docker images for hardware design, RTL development, and embedded systems. All images support AMD64 and ARM64 architectures.
 
-```
-                    ##         .
-              ## ## ##        ==
-           ## ## ## ## ##    ===
-       /""""""""""""""""\___/ ===
-  ~~~ {~~ ~~~~ ~~~ ~~~~ ~~~ ~ /  ===- ~~~
-       \______ o           __/
-         \    \         __/
-          \____\_______/
-```
+## Available Images
 
-## 🚀 Available Images
-
-### 🔧 **RTL Development Environment**
+### rtldev
 ```bash
 docker pull aignacio/rtldev:latest
 ```
-**`rtldev`** - Your complete RTL development toolkit with:
-- **Verilator** v5.026 - Fast Verilog simulator
-- **Slang** - Modern SystemVerilog compiler
-- **SV2V** - SystemVerilog to Verilog converter
-- **Verible** - SystemVerilog tools and linter
-- **Icarus Verilog** - Open-source Verilog simulator
-- **Nox** - Python task automation
+Complete RTL development environment including:
+- Verilator v5.026
+- Slang (SystemVerilog compiler)
+- SV2V (SystemVerilog to Verilog converter)
+- Verible (SystemVerilog linter)
+- Icarus Verilog
+- Nox
 
-### ⚡ **Chisel Hardware Design**
+### chisel
 ```bash
 docker pull aignacio/chisel:latest
 ```
-**`chisel`** - Hardware design with Chisel:
-- **Chisel** - Constructing Hardware in a Scala Embedded Language
-- **Scala** - Programming language for hardware design
-- **SBT** - Build tool for Scala projects
+Chisel hardware design environment:
+- Chisel (Scala-based HDL)
+- Scala
+- SBT
 
-### 🔍 **Yosys Synthesis Suite**
+### yosys
 ```bash
 docker pull aignacio/yosys:latest
 ```
-**`yosys`** - Open source synthesis suite:
-- **Yosys** - Framework for Verilog RTL synthesis
-- **ABC** - Sequential synthesis and verification
-- **SMT-Solver** - Satisfiability modulo theories
+Open-source synthesis suite:
+- Yosys (RTL synthesis framework)
+- ABC (synthesis and verification)
+- SMT-Solver
 
-### 🎯 **Synlig Synthesis Tool**
+### synlig
 ```bash
 docker pull aignacio/synlig:latest
 ```
-**`synlig`** - Advanced synthesis environment:
-- **Synlig** - Modern synthesis toolchain
-- **Optimization tools** - For RTL synthesis
-- **Design analysis** - Comprehensive verification
+SystemVerilog synthesis toolchain:
+- Synlig
+- Yosys-based synthesis flow
 
-### 🧠 **MPSoC Software Development**
+### mpsocsw
 ```bash
 docker pull aignacio/mpsocsw:latest
 ```
-**`mpsocsw`** - Multi-Processor System-on-Chip development:
-- **Xilinx tools** - For Zynq UltraScale+ MPSoC
-- **Cross-compilation** - ARM64 toolchain
-- **Embedded Linux** - Development environment
+Zynq UltraScale+ MPSoC development:
+- Xilinx tools for MPSoC
+- ARM64 cross-compilation toolchain
+- Embedded Linux development tools
 
-### 🐍 **Nox Development Environment**
+### nox
 ```bash
 docker pull aignacio/nox:latest
 ```
-**`nox`** - Python task automation:
-- **Nox** - Flexible test automation
-- **Python 3** - Latest Python environment
-- **Development tools** - For Python projects
+Python task automation:
+- Nox
+- Python 3
+- Testing and development tools
 
-### 🔌 **AXI DMA Development**
+### axidma
 ```bash
 docker pull aignacio/axidma:latest
 ```
-**`axidma`** - AXI Direct Memory Access development:
-- **AXI DMA IP** - Xilinx DMA controller
-- **HLS tools** - High-Level Synthesis
-- **Vivado tools** - For FPGA development
+AXI DMA development environment:
+- Xilinx AXI DMA IP
+- HLS tools
+- Vivado
 
-### 🎮 **Icarus Verilog**
+### icarus
 ```bash
 docker pull aignacio/icarus:latest
 ```
-**`icarus`** - Lightweight Verilog simulation:
-- **Icarus Verilog** - Open-source Verilog simulator
-- **GTKWave** - Waveform viewer
-- **Verilog tools** - Complete toolchain
+Verilog simulation:
+- Icarus Verilog
+- GTKWave
+- Basic Verilog toolchain
 
-### 🤖 **GitHub Runner Environment**
+### gh_runner
 ```bash
 docker pull aignacio/gh_runner:latest
 ```
-**`gh_runner`** - Self-hosted GitHub Actions runner:
-- **GitHub Actions runner** - Self-hosted CI/CD
-- **Development tools** - For automated workflows
-- **Containerized CI** - Isolated build environment
+Self-hosted GitHub Actions runner:
+- GitHub Actions runner
+- CI/CD tools
 
-## 🏗️ **Architecture Support**
+## Architecture Support
 
-All images are built for multiple architectures:
-- **🐧 Linux AMD64** - Intel/AMD 64-bit processors
-- **🍎 Linux ARM64** - Apple Silicon, ARM servers, Raspberry Pi
+All images support:
+- Linux AMD64
+- Linux ARM64
 
-## 🚀 **Quick Start**
+## Quick Start
 
 ### Pull and Run
 ```bash
@@ -130,69 +117,56 @@ docker build -f Dockerfile.rtldev -t my-rtldev .
 docker build --platform linux/arm64 -f Dockerfile.rtldev -t my-rtldev-arm64 .
 ```
 
-## 🏷️ **Image Tags**
+## Image Tags
 
-- **`latest`** - Most recent stable version
-- **`v1.0.0`** - Specific version tags
-- **`v1.0`** - Major.minor version
-- **`main-abc123`** - Branch-specific builds
+- `latest` - Most recent stable version
+- `v1.0.0` - Specific version tags
+- `v1.0` - Major.minor version
+- `main-abc123` - Branch-specific builds
 
-## 🔄 **Automated Builds**
+## Automated Builds
 
-This repository uses GitHub Actions to automatically build and push all images to Docker Hub:
+GitHub Actions automatically builds and pushes images to Docker Hub on every push to main. Parallel builds run for all images with multi-architecture support.
 
-- **🔄 Automatic builds** on every push to main branch
-- **🏷️ Version tagging** for releases
-- **⚡ Parallel builds** for all images
-- **🔄 Multi-arch support** (AMD64 + ARM64)
+### Required Secrets
 
-### Setup Required Secrets
-To enable automated builds, add these secrets to your GitHub repository:
+To enable automated builds:
 
-1. **`DOCKERHUB_USERNAME`** - Your Docker Hub username
-2. **`DOCKERHUB_TOKEN`** - Your Docker Hub access token (not password)
+1. `DOCKERHUB_USERNAME` - Your Docker Hub username
+2. `DOCKERHUB_TOKEN` - Docker Hub access token
 
-**To create a Docker Hub token:**
-1. Go to [Docker Hub Account Settings](https://hub.docker.com/settings/security)
-2. Click "New Access Token"
-3. Give it a name (e.g., "GitHub Actions")
-4. Copy the token and add it as `DOCKERHUB_TOKEN` secret
+Create a token at [Docker Hub Account Settings](https://hub.docker.com/settings/security)
 
-## 🛠️ **Development**
+## Development
 
 ### Prerequisites
 - Docker with BuildKit enabled
-- GitHub Actions (for automated builds)
 
-### Local Development
+### Building Locally
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/docker_images.git
+git clone https://github.com/aignacio/docker_images.git
 cd docker_images
 
-# Build all images locally
+# Build all images
 for dockerfile in Dockerfile.*; do
   name=$(basename $dockerfile Dockerfile.)
   docker build -f $dockerfile -t aignacio/$name:local .
 done
 ```
 
-## 📝 **Contributing**
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Add your Dockerfile with proper labels
-4. Update the matrix in `.github/workflows/docker-build.yml`
+3. Add your Dockerfile
+4. Update `.github/workflows/docker-build.yml`
 5. Submit a pull request
 
-## 📄 **License**
+## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
-## 🤝 **Support**
+## Contact
 
-- **🐛 Issues**: [GitHub Issues](https://github.com/your-username/docker_images/issues)
-- **💬 Discussions**: [GitHub Discussions](https://github.com/your-username/docker_images/discussions)
-- **📧 Email**: anderson@aignacio.com
-
----
+- Issues: [GitHub Issues](https://github.com/aignacio/docker_images/issues)
+- Email: anderson@aignacio.com
