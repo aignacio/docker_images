@@ -6,7 +6,9 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt-get update && apt-get upgrade -y
 RUN apt-get install git file gcc make time wget zip -y
 # OSS CAD suite
-RUN wget -c http://github.com/YosysHQ/oss-cad-suite-build/releases/download/2024-04-23/oss-cad-suite-linux-x64-20240423.tgz -O - | tar -xz
+#RUN wget -c http://github.com/YosysHQ/oss-cad-suite-build/releases/download/2026-02-07/oss-cad-suite-linux-x64-20260207.tgz -O - | tar -xz
+#RUN wget -c https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2025-12-11/oss-cad-suite-linux-x64-20251211.tgz -O - | tar -xz
+RUN wget -c https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2026-02-07/oss-cad-suite-darwin-arm64-20260207.tgz -O - | tar -xz
 ENV PATH="/oss-cad-suite/bin:$PATH"
 #[sv2v]
 RUN wget https://github.com/zachjs/sv2v/releases/download/v0.0.11/sv2v-Linux.zip
@@ -22,7 +24,25 @@ RUN apt-get update && \
     make -j$(nproc) && \
     make install
 WORKDIR /opensta
-RUN mkdir build
-RUN cd build && cmake ../
-RUN cd build && make -j`nproc`
-RUN cd build && make install
+RUN mkdir build && \
+    cd build && cmake ../ && \
+    make -j`nproc` && \
+    make install
+#WORKDIR /yosys-slang
+#RUN git clone --recursive https://github.com/povik/yosys-slang && \
+#    cd yosys-slang && \
+#    make -j$(nproc) && \
+#    make install
+#RUN cp /yosys-slang/yosys-slang/build/slang.so /oss-cad-suite/share/yosys/plugins/ && \
+#    chmod +x /oss-cad-suite/share/yosys/plugins/slang.so
+# ---------- SLANG --------
+# Install build dependencies
+RUN apt-get install cmake build-essential g++-14 gcc-14 libstdc++-14-dev -y
+
+WORKDIR /tmp
+RUN git clone https://github.com/MikePopoloski/slang.git &&\
+    cd /tmp/slang &&\
+    cmake -B /tmp/slang/build &&\
+    cmake --build /tmp/slang/build -j 8
+
+

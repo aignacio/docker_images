@@ -12,7 +12,7 @@ RUN apt update -y && \
 WORKDIR /tmp
 RUN git clone https://github.com/verilator/verilator.git &&\
     cd verilator &&\
-    git checkout v5.026 &&\
+    git checkout stable &&\
     autoconf &&\
     ./configure &&\
     make -j $(nproc) &&\
